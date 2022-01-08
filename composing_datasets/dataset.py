@@ -17,19 +17,18 @@ class HateSpeechDataset(Dataset):
         os.path.join(SCRIPT_DIR, "..", "data", "hate_speech")
     )
     DATA_FILE: str = os.path.join(DATA_ROOT, "labeled_data.csv")
-    CLASS_NON_OFFENSIVE: str = "2"
 
     def __init__(self) -> None:
         os.makedirs(self.DATA_ROOT, exist_ok=True)
         if not os.path.exists(self.DATA_FILE):
             _download_data(self.DOWNLOAD_URL, self.DATA_FILE)
-        self.tokenizer = torchtext.data.get_tokenizer("basic_english")
         self.text, self.labels = self._load_data()
-        self.vocab = torchtext.vocab.build_vocab_from_iterator(self.text)
-        self.token_ids = [
-            torch.tensor([self.vocab[token] for token in tweet], dtype=torch.long)
-            for tweet in self.text
-        ]
+
+        self.tokenizer = torchtext.data.get_tokenizer("basic_english")
+        self.tokens = [self.tokenizer(text) for text in self.text]
+
+        self.vocab = torchtext.vocab.build_vocab_from_iterator(self.tokens)
+        self.token_ids = [self._tokens_to_tensor(tokens) for tokens in self.tokens]
         self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
 
     def _load_data(self):
@@ -49,15 +48,13 @@ class HateSpeechDataset(Dataset):
         return data
 
     def _process_data(self, data: Dict[str, List[str]]) -> Tuple[List[str], List[int]]:
-        clean_text = []
-        for text in data["text"]:
-            clean_text.append(self.tokenizer(text))
-        clean_labels = self._process_labels(data["class"])
+        clean_text = data["text"]
+        clean_labels = [int(label) for label in data["class"]]
 
         return clean_text, clean_labels
 
-    def _process_labels(self, labels):
-        return [(0 if label == self.CLASS_NON_OFFENSIVE else 1) for label in labels]
+    def _tokens_to_tensor(self, tokens: List[str]) -> torch.Tensor:
+        return torch.tensor([self.vocab[token] for token in tokens], dtype=torch.long)
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.token_ids[index], self.labels[index]
