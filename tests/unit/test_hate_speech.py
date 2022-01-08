@@ -68,6 +68,13 @@ class TestHateSpeechDataset(unittest.TestCase):
             dataset = HateSpeechDataset()
             self.assertEqual(3, len(dataset))
 
+    def test_oov(self, mock_exists, mock_makedirs):
+        mock_open = mock.mock_open(read_data=self.MOCK_CSV)
+        with mock.patch("composing_datasets.dataset.open", new=mock_open):
+            dataset = HateSpeechDataset()
+            exp_default_index = len(dataset.vocab)
+            self.assertListEqual([exp_default_index], dataset.vocab(["foo"]))
+
 
 class TestDownloadData(unittest.TestCase):
     def setUp(self):
