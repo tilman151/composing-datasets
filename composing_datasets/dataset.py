@@ -1,9 +1,10 @@
 import csv
 import os
-from typing import Tuple
+from typing import Tuple, List, Dict
 
 import requests
 import torch
+import torchtext.data
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
@@ -22,7 +23,14 @@ class HateSpeechDataset(Dataset):
         os.makedirs(self.DATA_ROOT, exist_ok=True)
         if not os.path.exists(self.DATA_FILE):
             _download_data(self.DOWNLOAD_URL, self.DATA_FILE)
+        self.tokenizer = torchtext.data.get_tokenizer("basic_english")
         self.text, self.labels = self._load_data()
+        self.vocab = torchtext.vocab.build_vocab_from_iterator(self.text)
+        self.token_ids = [
+            torch.tensor([self.vocab[token] for token in tweet], dtype=torch.long)
+            for tweet in self.text
+        ]
+        self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
 
     def _load_data(self):
         data = self._read_data()
@@ -30,7 +38,7 @@ class HateSpeechDataset(Dataset):
 
         return text, labels
 
-    def _read_data(self):
+    def _read_data(self) -> Dict[str, List[str]]:
         data = {"class": [], "text": []}
         with open(self.DATA_FILE, mode="rt") as f:
             reader = csv.DictReader(f)
@@ -40,22 +48,22 @@ class HateSpeechDataset(Dataset):
 
         return data
 
-    def _process_data(self, data):
-        clean_text = data["text"]
-        clean_labels = []
-        for text, label in zip(data["text"], data["class"]):
-            if label == self.CLASS_NON_OFFENSIVE:
-                clean_labels.append(0)
-            else:
-                clean_labels.append(1)
+    def _process_data(self, data: Dict[str, List[str]]) -> Tuple[List[str], List[int]]:
+        clean_text = []
+        for text in data["text"]:
+            clean_text.append(self.tokenizer(text))
+        clean_labels = self._process_labels(data["class"])
 
         return clean_text, clean_labels
 
+    def _process_labels(self, labels):
+        return [(0 if label == self.CLASS_NON_OFFENSIVE else 1) for label in labels]
+
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        pass
+        return self.token_ids[index], self.labels[index]
 
     def __len__(self) -> int:
-        pass
+        return len(self.text)
 
 
 def _download_data(url: str, output_path: str) -> None:
