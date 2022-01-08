@@ -18,7 +18,10 @@ class TestHateSpeechDataset(unittest.TestCase):
 
     @mock.patch("composing_datasets.dataset._download_data")
     def test_download(self, mock_download, mock_exists, mock_makedirs):
-        with self.subTest("not downloaded"):
+        mock_open = mock.mock_open(read_data=self.MOCK_CSV)
+        with self.subTest("not downloaded"), mock.patch(
+            "composing_datasets.dataset.open", new=mock_open
+        ):
             mock_exists.return_value = False
             HateSpeechDataset()
 
@@ -32,7 +35,9 @@ class TestHateSpeechDataset(unittest.TestCase):
         mock_makedirs.reset_mock()
         mock_download.reset_mock()
 
-        with self.subTest("already downloaded"):
+        with self.subTest("already downloaded"), mock.patch(
+            "composing_datasets.dataset.open", new=mock_open
+        ):
             mock_exists.return_value = True
             HateSpeechDataset()
 
