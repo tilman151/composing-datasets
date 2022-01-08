@@ -8,10 +8,14 @@ authors = ["Tilman Krokotsch <tilman.krokotsch@tu-berlin.de>"]
 python = "^3.9"
 torch = "^1.10.1"
 hydra-core = "^1.1.1"
+tqdm = "^4.62.3"
+requests = "^2.27.1"
+numpy = "^1.22.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
 black = {extras = ["d"], version = "^21.12b0"}
+responses = "^0.16.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
