@@ -28,6 +28,7 @@ class HateSpeechDataset(Dataset):
         self.tokens = [self.tokenizer(text) for text in self.text]
 
         self.vocab = torchtext.vocab.build_vocab_from_iterator(self.tokens)
+        self.vocab.set_default_index(len(self.vocab))
         self.token_ids = [self._tokens_to_tensor(tokens) for tokens in self.tokens]
         self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
 
