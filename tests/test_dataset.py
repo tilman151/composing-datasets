@@ -44,19 +44,17 @@ class TestHateSpeechDataset(unittest.TestCase):
         mock_open = mock.mock_open(read_data=self.MOCK_CSV)
         with mock.patch("composing_datasets.dataset.open", new=mock_open):
             dataset = HateSpeechDataset()
-            self.assertListEqual([0, 1, 1], dataset.labels)
-            self.assertListEqual(
-                [["tweet", "1"], ["tweet", "2"], ["tweet", "3"]], dataset.text
-            )
+            self.assertListEqual([2, 1, 0], dataset.labels)
+            self.assertListEqual(["Tweet 1", "Tweet 2", "Tweet 3"], dataset.text)
 
     def test_get_item(self, mock_exists, mock_makedirs):
         mock_open = mock.mock_open(read_data=self.MOCK_CSV)
         with mock.patch("composing_datasets.dataset.open", new=mock_open):
             dataset = HateSpeechDataset()
             expected_samples = [
-                (torch.tensor([0, 1]), torch.tensor(0)),
+                (torch.tensor([0, 1]), torch.tensor(2)),
                 (torch.tensor([0, 2]), torch.tensor(1)),
-                (torch.tensor([0, 3]), torch.tensor(1)),
+                (torch.tensor([0, 3]), torch.tensor(0)),
             ]
             for (exp_ids, exp_label), (ids, label) in zip(expected_samples, dataset):
                 self.assertTrue(torch.all(exp_ids == ids))
