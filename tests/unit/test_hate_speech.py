@@ -2,7 +2,9 @@ import unittest
 from unittest import mock
 
 import responses
+import revtok
 import torch
+import torchtext
 from responses import matchers
 
 from composing_datasets.dataset import HateSpeechDataset, _download_data
@@ -79,6 +81,20 @@ class TestHateSpeechDataset(unittest.TestCase):
             dataset = HateSpeechDataset()
             exp_default_index = len(dataset.vocab)
             self.assertListEqual([exp_default_index], dataset.vocab(["foo"]))
+
+    def test_setting_tokenizer(self, mock_exists, mock_makedirs):
+        mock_open = mock.mock_open(read_data=self.MOCK_CSV)
+        with mock.patch("composing_datasets.dataset.open", new=mock_open):
+            with self.subTest("default tokenizer"):
+                dataset = HateSpeechDataset()
+                self.assertIs(
+                    torchtext.data.utils._basic_english_normalize, dataset.tokenizer
+                )
+            with self.subTest("revtok tokenizer"):
+                dataset = HateSpeechDataset("revtok")
+                self.assertIs(revtok.tokenize, dataset.tokenizer)
+            with self.subTest("unknown tokenizer"):
+                self.assertRaises(ValueError, HateSpeechDataset, "foobar")
 
 
 class TestDownloadData(unittest.TestCase):
