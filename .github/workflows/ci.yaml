@@ -6,6 +6,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: piotrpawlaczek/python-blacken@release/stable
+        with:
+          line-length: '88'
   unit:
     runs-on: ubuntu-latest
     needs: [ black ]
