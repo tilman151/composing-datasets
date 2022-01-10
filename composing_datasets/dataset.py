@@ -12,6 +12,8 @@ SCRIPT_DIR = os.path.dirname(__file__)
 
 
 class HateSpeechDataset(Dataset):
+    """Automated Hate Speech Detection and the Problem of Offensive Language dataset."""
+
     DOWNLOAD_URL: str = "https://raw.githubusercontent.com/t-davidson/hate-speech-and-offensive-language/master/data/labeled_data.csv"
     DATA_ROOT: str = os.path.normpath(
         os.path.join(SCRIPT_DIR, "..", "data", "hate_speech")
@@ -19,6 +21,15 @@ class HateSpeechDataset(Dataset):
     DATA_FILE: str = os.path.join(DATA_ROOT, "labeled_data.csv")
 
     def __init__(self) -> None:
+        """
+        This class provides token IDs and labels for the hate speech dataset sourced
+        from twitter.
+
+        The dataset files are downloaded to the projects data folder if not already
+        present. Each tweet is split with the torchtext basic english tokenizer. The
+        vocabulary of all tokens with a default index is built afterwards. The class
+        labels correspond to hate speech (0), offensive (1) and neither (2).
+        """
         os.makedirs(self.DATA_ROOT, exist_ok=True)
         if not os.path.exists(self.DATA_FILE):
             _download_data(self.DOWNLOAD_URL, self.DATA_FILE)
@@ -32,7 +43,7 @@ class HateSpeechDataset(Dataset):
         self.token_ids = [self._tokens_to_tensor(tokens) for tokens in self.tokens]
         self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
 
-    def _load_data(self):
+    def _load_data(self) -> Tuple[List[str], List[int]]:
         data = self._read_data()
         text, labels = self._process_data(data)
 
@@ -58,13 +69,16 @@ class HateSpeechDataset(Dataset):
         return torch.tensor([self.vocab[token] for token in tokens], dtype=torch.long)
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return token ids and label of the requested sample as long tensors."""
         return self.token_ids[index], self.labels[index]
 
     def __len__(self) -> int:
+        """Number of tweets in the dataset."""
         return len(self.text)
 
 
 def _download_data(url: str, output_path: str) -> None:
+    """Download the content of a URL to a file."""
     response = requests.get(url, stream=True)
     with open(output_path, mode="wb") as f:
         download_size = int(response.headers["content-length"]) // 1024
