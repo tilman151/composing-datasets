@@ -1,6 +1,6 @@
 import csv
 import os
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional, Callable
 
 import requests
 import torch
@@ -20,7 +20,7 @@ class HateSpeechDataset(Dataset):
     )
     DATA_FILE: str = os.path.join(DATA_ROOT, "labeled_data.csv")
 
-    def __init__(self) -> None:
+    def __init__(self, tokenizer: Optional[str] = None) -> None:
         """
         This class provides token IDs and labels for the hate speech dataset sourced
         from twitter.
@@ -35,7 +35,7 @@ class HateSpeechDataset(Dataset):
             _download_data(self.DOWNLOAD_URL, self.DATA_FILE)
         self.text, self.labels = self._load_data()
 
-        self.tokenizer = torchtext.data.get_tokenizer("basic_english")
+        self.tokenizer = self._get_tokenizer(tokenizer)
         self.tokens = [self.tokenizer(text) for text in self.text]
 
         self.vocab = torchtext.vocab.build_vocab_from_iterator(self.tokens)
@@ -64,6 +64,14 @@ class HateSpeechDataset(Dataset):
         clean_labels = [int(label) for label in data["class"]]
 
         return clean_text, clean_labels
+
+    def _get_tokenizer(self, tokenizer: Optional[str]) -> Callable:
+        if tokenizer is None:
+            tokenizer = torchtext.data.get_tokenizer("basic_english")
+        else:
+            tokenizer = torchtext.data.get_tokenizer(tokenizer)
+
+        return tokenizer
 
     def _tokens_to_tensor(self, tokens: List[str]) -> torch.Tensor:
         return torch.tensor([self.vocab[token] for token in tokens], dtype=torch.long)

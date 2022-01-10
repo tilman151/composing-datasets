@@ -330,6 +330,18 @@ urllib3 = ">=1.25.10"
 tests = ["coverage (>=3.7.1,<6.0.0)", "pytest-cov", "pytest-localserver", "flake8", "types-mock", "types-requests", "types-six", "pytest (>=4.6,<5.0)", "pytest (>=4.6)", "mypy"]
 
 [[package]]
+name = "revtok"
+version = "0.0.3"
+description = "Reversible tokenization in Python."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.extras]
+dev = ["check-manifest"]
+test = ["coverage"]
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -430,7 +442,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "4299a66c22f2b93f97d43a48b1dee725a691bb69eed9f84d971870726be8ad77"
+content-hash = "5d03d25c1c118f09ee812add6f2900c3ef7b1e9582c2e5a83e77cf0b7135f36a"
 
 [metadata.files]
 aiohttp = [
@@ -808,6 +820,10 @@ requests = [
 responses = [
     {file = "responses-0.16.0-py2.py3-none-any.whl", hash = "sha256:f358ef75e8bf431b0aa203cc62625c3a1c80a600dbe9de91b944bf4e9c600b92"},
     {file = "responses-0.16.0.tar.gz", hash = "sha256:a2e3aca2a8277e61257cd3b1c154b1dd0d782b1ae3d38b7fa37cbe3feb531791"},
+]
+revtok = [
+    {file = "revtok-0.0.3-py3-none-any.whl", hash = "sha256:a66090024a4ecfc8475cdc802f9c4f838a3a23d8a5c27c78c10cadc06ccba837"},
+    {file = "revtok-0.0.3.tar.gz", hash = "sha256:b068055907eb3c9b2b4202e6839f51c9b9e9e16c9267a392c06a326d25bd6287"},
 ]
 six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
