@@ -1,7 +1,9 @@
 import csv
 import os
+import zipfile
 from abc import ABCMeta, abstractmethod
 from typing import Tuple, List, Dict, Optional, Callable
+from urllib.parse import urlparse
 
 import requests
 import torch
@@ -29,7 +31,7 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
         """
         os.makedirs(self.DATA_ROOT, exist_ok=True)
         if not os.path.exists(self.DATA_FILE):
-            _download_data(self.DOWNLOAD_URL, self.DATA_FILE)
+            _download_data(self.DOWNLOAD_URL, self.DATA_ROOT)
         self.text, self.labels = self._load_data()
 
         self.tokenizer = self._get_tokenizer(tokenizer)
@@ -95,30 +97,24 @@ class HateSpeechDataset(TextClassificationDataset):
 
         return clean_text, clean_labels
 
-    def _get_tokenizer(self, tokenizer: Optional[str]) -> Callable:
-        if tokenizer is None:
-            tokenizer = torchtext.data.get_tokenizer("basic_english")
-        else:
-            tokenizer = torchtext.data.get_tokenizer(tokenizer)
 
-        return tokenizer
-
-    def _tokens_to_tensor(self, tokens: List[str]) -> torch.Tensor:
-        return torch.tensor([self.vocab[token] for token in tokens], dtype=torch.long)
-
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Return token ids and label of the requested sample as long tensors."""
-        return self.token_ids[index], self.labels[index]
-
-    def __len__(self) -> int:
-        """Number of tweets in the dataset."""
-        return len(self.text)
+def _download_data(url: str, output_folder: str) -> None:
+    """Download the content of a URL to a folder and extract it if a ZIP."""
+    file_name = os.path.basename(urlparse(url).path)
+    output_path = os.path.join(output_folder, file_name)
+    _fetch_data(url, output_path)
+    if file_name.endswith(".zip"):
+        _extract_data(output_path, output_folder)
 
 
-def _download_data(url: str, output_path: str) -> None:
-    """Download the content of a URL to a file."""
+def _fetch_data(url, output_path):
     response = requests.get(url, stream=True)
     with open(output_path, mode="wb") as f:
         download_size = int(response.headers["content-length"]) // 1024
         for data in tqdm(response.iter_content(chunk_size=1024), total=download_size):
             f.write(data)
+
+
+def _extract_data(zip_path, output_folder):
+    with zipfile.ZipFile(zip_path, mode="r") as zip_ref:
+        zip_ref.extractall(output_folder)

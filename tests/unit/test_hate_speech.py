@@ -30,7 +30,7 @@ class TestHateSpeechDataset(unittest.TestCase):
             mock_makedirs.assert_called_with(HateSpeechDataset.DATA_ROOT, exist_ok=True)
             mock_exists.assert_called_with(HateSpeechDataset.DATA_FILE)
             mock_download.assert_called_with(
-                HateSpeechDataset.DOWNLOAD_URL, HateSpeechDataset.DATA_FILE
+                HateSpeechDataset.DOWNLOAD_URL, HateSpeechDataset.DATA_ROOT
             )
 
         mock_exists.reset_mock()
@@ -101,16 +101,34 @@ class TestDownloadData(unittest.TestCase):
     def setUp(self):
         responses.add(
             responses.GET,
-            "https://test.com",
+            "https://test.com/example.csv",
+            headers={"content-length": "2048"},
+            body="0" * 2048,
+            match=[matchers.request_kwargs_matcher({"stream": True})],
+        )
+        responses.add(
+            responses.GET,
+            "https://test.com/example.zip",
             headers={"content-length": "2048"},
             body="0" * 2048,
             match=[matchers.request_kwargs_matcher({"stream": True})],
         )
 
     @responses.activate
-    def test_download_data(self):
+    @mock.patch("zipfile.ZipFile")
+    def test_download_data(self, mock_zip_file):
         mock_open = mock.mock_open()
         with mock.patch("composing_datasets.dataset.open", new=mock_open):
-            _download_data("https://test.com", "mock/file")
-            mock_open.assert_called_with("mock/file", mode="wb")
-            mock_open().write.assert_has_calls([mock.call(b"0" * 1024)] * 2)
+            with self.subTest("only download"):
+                _download_data("https://test.com/example.csv", "mock/file")
+                mock_open.assert_called_with("mock/file/example.csv", mode="wb")
+                mock_open().write.assert_has_calls([mock.call(b"0" * 1024)] * 2)
+                mock_zip_file().extract_all.assert_not_called()
+
+        with mock.patch("composing_datasets.dataset.open", new=mock_open):
+            with self.subTest("download_and_extract"):
+                _download_data("https://test.com/example.zip", "mock/file")
+                mock_open.assert_called_with("mock/file/example.zip", mode="wb")
+                mock_open().write.assert_has_calls([mock.call(b"0" * 1024)] * 2)
+                mock_zip_file.assert_called_with("mock/file/example.zip", mode="r")
+                mock_zip_file().__enter__().extractall.assert_called_with("mock/file")
