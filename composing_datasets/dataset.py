@@ -1,24 +1,21 @@
 import csv
 import os
+from abc import ABCMeta, abstractmethod
 from typing import Tuple, List, Dict, Optional, Callable
 
 import requests
 import torch
-import torchtext.data
+import torchtext
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
 SCRIPT_DIR = os.path.dirname(__file__)
 
 
-class HateSpeechDataset(Dataset):
-    """Automated Hate Speech Detection and the Problem of Offensive Language dataset."""
-
-    DOWNLOAD_URL: str = "https://raw.githubusercontent.com/t-davidson/hate-speech-and-offensive-language/master/data/labeled_data.csv"
-    DATA_ROOT: str = os.path.normpath(
-        os.path.join(SCRIPT_DIR, "..", "data", "hate_speech")
-    )
-    DATA_FILE: str = os.path.join(DATA_ROOT, "labeled_data.csv")
+class TextClassificationDataset(Dataset, metaclass=ABCMeta):
+    DOWNLOAD_URL: str
+    DATA_ROOT: str
+    DATA_FILE: str
 
     def __init__(self, tokenizer: Optional[str] = None) -> None:
         """
@@ -42,6 +39,39 @@ class HateSpeechDataset(Dataset):
         self.vocab.set_default_index(len(self.vocab))
         self.token_ids = [self._tokens_to_tensor(tokens) for tokens in self.tokens]
         self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
+
+    @abstractmethod
+    def _load_data(self):
+        pass
+
+    def _get_tokenizer(self, tokenizer: Optional[str]) -> Callable:
+        if tokenizer is None:
+            tokenizer = torchtext.data.get_tokenizer("basic_english")
+        else:
+            tokenizer = torchtext.data.get_tokenizer(tokenizer)
+
+        return tokenizer
+
+    def _tokens_to_tensor(self, tokens: List[str]) -> torch.Tensor:
+        return torch.tensor([self.vocab[token] for token in tokens], dtype=torch.long)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return token ids and label of the requested sample as long tensors."""
+        return self.token_ids[index], self.labels[index]
+
+    def __len__(self) -> int:
+        """Number of tweets in the dataset."""
+        return len(self.text)
+
+
+class HateSpeechDataset(TextClassificationDataset):
+    """Automated Hate Speech Detection and the Problem of Offensive Language dataset."""
+
+    DOWNLOAD_URL: str = "https://raw.githubusercontent.com/t-davidson/hate-speech-and-offensive-language/master/data/labeled_data.csv"
+    DATA_ROOT: str = os.path.normpath(
+        os.path.join(SCRIPT_DIR, "..", "data", "hate_speech")
+    )
+    DATA_FILE: str = os.path.join(DATA_ROOT, "labeled_data.csv")
 
     def _load_data(self) -> Tuple[List[str], List[int]]:
         data = self._read_data()
