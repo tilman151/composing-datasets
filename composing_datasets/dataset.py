@@ -1,5 +1,6 @@
 import csv
 import os
+import re
 import tarfile
 import zipfile
 from abc import ABCMeta, abstractmethod
@@ -100,6 +101,50 @@ class HateSpeechDataset(TextClassificationDataset):
             for row in reader:
                 data["class"].append(row["class"])
                 data["text"].append(row["tweet"])
+
+        return data
+
+    def _process_data(self, data: Dict[str, List[str]]) -> Tuple[List[str], List[int]]:
+        clean_text = data["text"]
+        clean_labels = [int(label) for label in data["class"]]
+
+        return clean_text, clean_labels
+
+
+class ImdbDataset(TextClassificationDataset):
+    DOWNLOAD_URL: str = "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
+    DATA_ROOT: str = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "data", "imdb"))
+    DATA_FILE: str = os.path.join(DATA_ROOT, "aclImdb")
+
+    CLASS_PATTERN = re.compile(r"\d+_(?P<rating>\d+).txt")
+
+    def __init__(self, split: str, tokenizer: Optional[str] = None) -> None:
+        if split not in ["train", "test"]:
+            raise ValueError("Unknown split supplied. Use either 'train' or 'test'.")
+        self.split = split
+        super(ImdbDataset, self).__init__(tokenizer)
+
+    def _load_data(self) -> Tuple[List[str], List[int]]:
+        pos_data = self._read_data(os.path.join(self.DATA_FILE, self.split, "pos"))
+        neg_data = self._read_data(os.path.join(self.DATA_FILE, self.split, "neg"))
+        pos_data["text"].extend(neg_data["text"])
+        pos_data["class"].extend(neg_data["class"])
+        text, labels = self._process_data(pos_data)
+
+        return text, labels
+
+    def _read_data(self, input_folder) -> Dict[str, List[str]]:
+        data = {"class": [], "text": []}
+        for file_name in sorted(os.listdir(input_folder)):
+            if (match := self.CLASS_PATTERN.match(file_name)) is not None:
+                data["class"].append(match.group("rating"))
+            else:
+                raise RuntimeError(
+                    f"Filename '{file_name}' in '{input_folder}'"
+                    f"does not match the schema '<id>_<rating>.txt'."
+                )
+            with open(os.path.join(input_folder, file_name), mode="rt") as f:
+                data["text"].append(f.read())
 
         return data
 
