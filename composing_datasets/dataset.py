@@ -1,5 +1,6 @@
 import csv
 import os
+import tarfile
 import zipfile
 from abc import ABCMeta, abstractmethod
 from typing import Tuple, List, Dict, Optional, Callable
@@ -99,12 +100,11 @@ class HateSpeechDataset(TextClassificationDataset):
 
 
 def _download_data(url: str, output_folder: str) -> None:
-    """Download the content of a URL to a folder and extract it if a ZIP."""
+    """Download the content of a URL to a folder and extract if it is archive."""
     file_name = os.path.basename(urlparse(url).path)
-    output_path = os.path.join(output_folder, file_name)
-    _fetch_data(url, output_path)
-    if file_name.endswith(".zip"):
-        _extract_data(output_path, output_folder)
+    output_file_path = os.path.join(output_folder, file_name)
+    _fetch_data(url, output_file_path)
+    _extract_data_if_archive(output_file_path, output_folder)
 
 
 def _fetch_data(url, output_path):
@@ -115,6 +115,10 @@ def _fetch_data(url, output_path):
             f.write(data)
 
 
-def _extract_data(zip_path, output_folder):
-    with zipfile.ZipFile(zip_path, mode="r") as zip_ref:
-        zip_ref.extractall(output_folder)
+def _extract_data_if_archive(archive_path, output_folder):
+    if archive_path.endswith(".zip"):
+        with zipfile.ZipFile(archive_path, mode="r") as archive:
+            archive.extractall(output_folder)
+    elif archive_path.endswith("tar.gz"):
+        with tarfile.open(archive_path, mode="r:gz") as archive:
+            archive.extractall(output_folder)

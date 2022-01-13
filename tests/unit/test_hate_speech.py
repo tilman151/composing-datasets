@@ -7,7 +7,12 @@ import torch
 import torchtext
 from responses import matchers
 
-from composing_datasets.dataset import HateSpeechDataset, _download_data
+from composing_datasets.dataset import (
+    HateSpeechDataset,
+    _download_data,
+    _fetch_data,
+    _extract_data_if_archive,
+)
 
 
 @mock.patch("os.makedirs")
@@ -106,29 +111,32 @@ class TestDownloadData(unittest.TestCase):
             body="0" * 2048,
             match=[matchers.request_kwargs_matcher({"stream": True})],
         )
-        responses.add(
-            responses.GET,
-            "https://test.com/example.zip",
-            headers={"content-length": "2048"},
-            body="0" * 2048,
-            match=[matchers.request_kwargs_matcher({"stream": True})],
+
+    @mock.patch("composing_datasets.dataset._extract_data_if_archive")
+    @mock.patch("composing_datasets.dataset._fetch_data")
+    def test_download_data(self, mock_fetch, mock_extract):
+        _download_data("https://test.com/example.csv", "mock/file")
+        mock_fetch.assert_called_with(
+            "https://test.com/example.csv", "mock/file/example.csv"
         )
+        mock_extract.assert_called_with("mock/file/example.csv", "mock/file")
 
     @responses.activate
-    @mock.patch("zipfile.ZipFile")
-    def test_download_data(self, mock_zip_file):
+    def test_fetch_data(self):
         mock_open = mock.mock_open()
         with mock.patch("composing_datasets.dataset.open", new=mock_open):
-            with self.subTest("only download"):
-                _download_data("https://test.com/example.csv", "mock/file")
-                mock_open.assert_called_with("mock/file/example.csv", mode="wb")
-                mock_open().write.assert_has_calls([mock.call(b"0" * 1024)] * 2)
-                mock_zip_file().extract_all.assert_not_called()
+            _fetch_data("https://test.com/example.csv", "mock/file/example.csv")
+            mock_open.assert_called_with("mock/file/example.csv", mode="wb")
+            mock_open().write.assert_has_calls([mock.call(b"0" * 1024)] * 2)
 
-        with mock.patch("composing_datasets.dataset.open", new=mock_open):
-            with self.subTest("download_and_extract"):
-                _download_data("https://test.com/example.zip", "mock/file")
-                mock_open.assert_called_with("mock/file/example.zip", mode="wb")
-                mock_open().write.assert_has_calls([mock.call(b"0" * 1024)] * 2)
-                mock_zip_file.assert_called_with("mock/file/example.zip", mode="r")
-                mock_zip_file().__enter__().extractall.assert_called_with("mock/file")
+    def test_extract_data_if_archive(self):
+        with self.subTest("zip"):
+            with mock.patch("zipfile.ZipFile") as mock_zip_file:
+                _extract_data_if_archive("foo/bar/example.zip", "foo/bar")
+                mock_zip_file.assert_called_with("foo/bar/example.zip", mode="r")
+                mock_zip_file().__enter__().extractall.assert_called_with("foo/bar")
+        with self.subTest("targ.gz"):
+            with mock.patch("tarfile.open") as mock_tar_file:
+                _extract_data_if_archive("foo/bar/example.tar.gz", "foo/bar")
+                mock_tar_file.assert_called_with("foo/bar/example.tar.gz", mode="r:gz")
+                mock_tar_file().__enter__().extractall.assert_called_with("foo/bar")
