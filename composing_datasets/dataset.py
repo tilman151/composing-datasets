@@ -22,13 +22,16 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
 
     def __init__(self, tokenizer: Optional[str] = None) -> None:
         """
-        This class provides token IDs and labels for the hate speech dataset sourced
-        from twitter.
+        This is a base class for text classification datasets.
 
-        The dataset files are downloaded to the projects data folder if not already
-        present. Each tweet is split with the torchtext basic english tokenizer. The
-        vocabulary of all tokens with a default index is built afterwards. The class
-        labels correspond to hate speech (0), offensive (1) and neither (2).
+        The dataset provides IDs and labels for blobs of text as long tensors. The
+        dataset files are downloaded to the project's data folder if not already
+        present. Each file is split with a tokenizer specified through a string
+        argument. The vocabulary of all tokens with a default index is built
+        afterwards.
+
+        :param tokenizer: One of 'spacy', 'moses', 'toktok', 'revtok', 'subword'
+                          or 'basic_english'. Defaults to the last one.
         """
         os.makedirs(self.DATA_ROOT, exist_ok=True)
         if not os.path.exists(self.DATA_FILE):
@@ -44,7 +47,7 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
         self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
 
     @abstractmethod
-    def _load_data(self):
+    def _load_data(self) -> Tuple[List[str], List[int]]:
         pass
 
     def _get_tokenizer(self, tokenizer: Optional[str]) -> Callable:
@@ -68,7 +71,15 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
 
 
 class HateSpeechDataset(TextClassificationDataset):
-    """Automated Hate Speech Detection and the Problem of Offensive Language dataset."""
+    """
+    This class provides token IDs and labels for the hate speech dataset sourced
+    from twitter.
+
+    The dataset files are downloaded to the projects data folder if not already
+    present. Each tweet is split with the torchtext basic english tokenizer. The
+    vocabulary of all tokens with a default index is built afterwards. The class
+    labels correspond to hate speech (0), offensive (1) and neither (2).
+    """
 
     DOWNLOAD_URL: str = "https://raw.githubusercontent.com/t-davidson/hate-speech-and-offensive-language/master/data/labeled_data.csv"
     DATA_ROOT: str = os.path.normpath(
