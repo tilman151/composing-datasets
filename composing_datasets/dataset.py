@@ -17,6 +17,8 @@ SCRIPT_DIR = os.path.dirname(__file__)
 
 
 class TextClassificationDataset(Dataset, metaclass=ABCMeta):
+    """Text classification dataset base class."""
+
     DOWNLOAD_URL: str
     DATA_ROOT: str
     DATA_FILE: str
@@ -27,7 +29,7 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
 
         The dataset provides IDs and labels for blobs of text as long tensors. The
         dataset files are downloaded to the project's data folder if not already
-        present. Each file is split with a tokenizer specified through a string
+        present. Each text is split with a tokenizer specified through a string
         argument. The vocabulary of all tokens with a default index is built
         afterwards.
 
@@ -49,6 +51,7 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
 
     @abstractmethod
     def _load_data(self) -> Tuple[List[str], List[int]]:
+        """Load all data and return a list of strings and a list of int labels."""
         pass
 
     def _get_tokenizer(self, tokenizer: Optional[str]) -> Callable:
@@ -112,6 +115,8 @@ class HateSpeechDataset(TextClassificationDataset):
 
 
 class ImdbDataset(TextClassificationDataset):
+    """Class for the Large Movie Review Dataset (imdb) dataset."""
+
     DOWNLOAD_URL: str = "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
     DATA_ROOT: str = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "data", "imdb"))
     DATA_FILE: str = os.path.join(DATA_ROOT, "aclImdb")
@@ -119,6 +124,19 @@ class ImdbDataset(TextClassificationDataset):
     CLASS_PATTERN = re.compile(r"\d+_(?P<rating>\d+).txt")
 
     def __init__(self, split: str, tokenizer: Optional[str] = None) -> None:
+        """
+        This class loads the Large Movie Review Dataset (imdb) dataset.
+
+        The dataset provides IDs and labels for movie reviews as long tensors. The
+        dataset files are downloaded to the project's data folder if not already
+        present. Each review is split with a tokenizer specified through a string
+        argument. The vocabulary of all tokens with a default index is built
+        afterwards.
+
+        :param split: either 'train' or 'test' to select the split
+        :param tokenizer: One of 'spacy', 'moses', 'toktok', 'revtok', 'subword'
+                          or 'basic_english'. Defaults to the last one.
+        """
         if split not in ["train", "test"]:
             raise ValueError("Unknown split supplied. Use either 'train' or 'test'.")
         self.split = split
@@ -136,17 +154,21 @@ class ImdbDataset(TextClassificationDataset):
     def _read_data(self, input_folder) -> Dict[str, List[str]]:
         data = {"class": [], "text": []}
         for file_name in sorted(os.listdir(input_folder)):
-            if (match := self.CLASS_PATTERN.match(file_name)) is not None:
-                data["class"].append(match.group("rating"))
-            else:
-                raise RuntimeError(
-                    f"Filename '{file_name}' in '{input_folder}'"
-                    f"does not match the schema '<id>_<rating>.txt'."
-                )
+            data["class"].append(self._get_rating_from_file_name(file_name))
             with open(os.path.join(input_folder, file_name), mode="rt") as f:
                 data["text"].append(f.read())
 
         return data
+
+    def _get_rating_from_file_name(self, file_name):
+        if (match := self.CLASS_PATTERN.match(file_name)) is not None:
+            rating = match.group("rating")
+        else:
+            raise RuntimeError(
+                f"Filename '{file_name}' does not match the schema '<id>_<rating>.txt'."
+            )
+
+        return rating
 
     def _process_data(self, data: Dict[str, List[str]]) -> Tuple[List[str], List[int]]:
         clean_text = data["text"]
