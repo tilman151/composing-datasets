@@ -1,13 +1,13 @@
 import unittest
 
-from composing_datasets import ImdbDataset
+from composing_datasets import TextClassificationDataset, ImdbDataset
 
 
 class TestImdbDataset(unittest.TestCase):
     def test_dataset(self):
         with self.subTest("train"):
-            dataset = ImdbDataset("train")
+            dataset = TextClassificationDataset(ImdbDataset("train"))
             self.assertEqual(25000, len(dataset))
         with self.subTest("test"):
-            dataset = ImdbDataset("test")
+            dataset = TextClassificationDataset(ImdbDataset("test"))
             self.assertEqual(25000, len(dataset))

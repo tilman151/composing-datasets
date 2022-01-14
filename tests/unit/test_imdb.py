@@ -60,9 +60,11 @@ class TestImdbDataset(unittest.TestCase):
     def test_loading_data(self):
         with self.subTest("train"):
             dataset = ImdbDataset("train")
-            self.assertListEqual([10, 1], dataset.labels)
-            self.assertListEqual(["train", "train"], dataset.text)
+            text, labels = zip(*dataset)
+            self.assertListEqual([10, 1], list(labels))
+            self.assertListEqual(["train", "train"], list(text))
         with self.subTest("test"):
             dataset = ImdbDataset("test")
-            self.assertListEqual([10, 1], dataset.labels)
-            self.assertListEqual(["test", "test"], dataset.text)
+            text, labels = zip(*dataset)
+            self.assertListEqual([10, 1], list(labels))
+            self.assertListEqual(["test", "test"], list(text))

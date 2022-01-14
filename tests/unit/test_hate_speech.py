@@ -14,5 +14,6 @@ class TestHateSpeechDataset(unittest.TestCase):
         mock_open = mock.mock_open(read_data=self.MOCK_CSV)
         with mock.patch("composing_datasets.dataset.open", new=mock_open):
             dataset = HateSpeechDataset()
-            self.assertListEqual([2, 1, 0], dataset.labels)
-            self.assertListEqual(["Tweet 1", "Tweet 2", "Tweet 3"], dataset.text)
+            text, labels = zip(*dataset)
+            self.assertListEqual([2, 1, 0], list(labels))
+            self.assertListEqual(["Tweet 1", "Tweet 2", "Tweet 3"], list(text))

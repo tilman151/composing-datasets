@@ -3,8 +3,7 @@ import os
 import re
 import tarfile
 import zipfile
-from abc import ABCMeta, abstractmethod
-from typing import Tuple, List, Dict, Optional, Callable
+from typing import Tuple, List, Dict, Optional, Callable, Union
 from urllib.parse import urlparse
 
 import requests
@@ -16,14 +15,12 @@ from tqdm import tqdm
 SCRIPT_DIR = os.path.dirname(__file__)
 
 
-class TextClassificationDataset(Dataset, metaclass=ABCMeta):
-    """Text classification dataset base class."""
+class TextClassificationDataset(Dataset):
+    """Text classification dataset class."""
 
-    DOWNLOAD_URL: str
-    DATA_ROOT: str
-    DATA_FILE: str
-
-    def __init__(self, tokenizer: Optional[str] = None) -> None:
+    def __init__(
+        self, dataset: Dataset, tokenizer: Union[str, Callable, None] = None
+    ) -> None:
         """
         This is a base class for text classification datasets.
 
@@ -36,10 +33,8 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
         :param tokenizer: One of 'spacy', 'moses', 'toktok', 'revtok', 'subword'
                           or 'basic_english'. Defaults to the last one.
         """
-        os.makedirs(self.DATA_ROOT, exist_ok=True)
-        if not os.path.exists(self.DATA_FILE):
-            _download_data(self.DOWNLOAD_URL, self.DATA_ROOT)
-        self.text, self.labels = self._load_data()
+        self.dataset = dataset
+        self.text, self.labels = tuple(zip(*self.dataset))
 
         self.tokenizer = self._get_tokenizer(tokenizer)
         self.tokens = [self.tokenizer(text) for text in self.text]
@@ -48,11 +43,6 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
         self.vocab.set_default_index(len(self.vocab))
         self.token_ids = [self._tokens_to_tensor(tokens) for tokens in self.tokens]
         self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
-
-    @abstractmethod
-    def _load_data(self) -> Tuple[List[str], List[int]]:
-        """Load all data and return a list of strings and a list of int labels."""
-        pass
 
     def _get_tokenizer(self, tokenizer: Optional[str]) -> Callable:
         if tokenizer is None:
@@ -74,22 +64,38 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
         return len(self.text)
 
 
-class HateSpeechDataset(TextClassificationDataset):
-    """
-    This class provides token IDs and labels for the hate speech dataset sourced
-    from twitter.
+class DownloadDataMixin:
+    DOWNLOAD_URL: str
+    DATA_ROOT: str
+    DATA_FILE: str
 
-    The dataset files are downloaded to the projects data folder if not already
-    present. Each tweet is split with the torchtext basic english tokenizer. The
-    vocabulary of all tokens with a default index is built afterwards. The class
-    labels correspond to hate speech (0), offensive (1) and neither (2).
-    """
+    def _download_data(self):
+        os.makedirs(self.DATA_ROOT, exist_ok=True)
+        if not os.path.exists(self.DATA_FILE):
+            _download_data(self.DOWNLOAD_URL, self.DATA_ROOT)
+
+
+class HateSpeechDataset(Dataset, DownloadDataMixin):
+    """The class for the hate speech dataset."""
 
     DOWNLOAD_URL: str = "https://raw.githubusercontent.com/t-davidson/hate-speech-and-offensive-language/master/data/labeled_data.csv"
     DATA_ROOT: str = os.path.normpath(
         os.path.join(SCRIPT_DIR, "..", "data", "hate_speech")
     )
     DATA_FILE: str = os.path.join(DATA_ROOT, "labeled_data.csv")
+
+    def __init__(self):
+        """
+        This class provides token IDs and labels for the hate speech dataset sourced
+        from twitter.
+
+        The dataset files are downloaded to the project's data folder if not already
+        present. Each tweet is split with the torchtext basic english tokenizer. The
+        vocabulary of all tokens with a default index is built afterwards. The class
+        labels correspond to hate speech (0), offensive (1) and neither (2).
+        """
+        self._download_data()
+        self.text, self.labels = self._load_data()
 
     def _load_data(self) -> Tuple[List[str], List[int]]:
         data = self._read_data()
@@ -113,8 +119,11 @@ class HateSpeechDataset(TextClassificationDataset):
 
         return clean_text, clean_labels
 
+    def __getitem__(self, index: int) -> Tuple[str, int]:
+        return self.text[index], self.labels[index]
 
-class ImdbDataset(TextClassificationDataset):
+
+class ImdbDataset(Dataset, DownloadDataMixin):
     """Class for the Large Movie Review Dataset (imdb) dataset."""
 
     DOWNLOAD_URL: str = "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
@@ -123,7 +132,7 @@ class ImdbDataset(TextClassificationDataset):
 
     CLASS_PATTERN = re.compile(r"\d+_(?P<rating>\d+).txt")
 
-    def __init__(self, split: str, tokenizer: Optional[str] = None) -> None:
+    def __init__(self, split: str) -> None:
         """
         This class loads the Large Movie Review Dataset (imdb) dataset.
 
@@ -140,7 +149,9 @@ class ImdbDataset(TextClassificationDataset):
         if split not in ["train", "test"]:
             raise ValueError("Unknown split supplied. Use either 'train' or 'test'.")
         self.split = split
-        super(ImdbDataset, self).__init__(tokenizer)
+
+        self._download_data()
+        self.text, self.labels = self._load_data()
 
     def _load_data(self) -> Tuple[List[str], List[int]]:
         pos_data = self._read_data(os.path.join(self.DATA_FILE, self.split, "pos"))
@@ -175,6 +186,9 @@ class ImdbDataset(TextClassificationDataset):
         clean_labels = [int(label) for label in data["class"]]
 
         return clean_text, clean_labels
+
+    def __getitem__(self, index: int) -> Tuple[str, int]:
+        return self.text[index], self.labels[index]
 
 
 def _download_data(url: str, output_folder: str) -> None:

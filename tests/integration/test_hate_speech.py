@@ -1,9 +1,9 @@
 import unittest
 
-from composing_datasets import HateSpeechDataset
+from composing_datasets import TextClassificationDataset, HateSpeechDataset
 
 
 class TestHateSpeechDataset(unittest.TestCase):
     def test_dataset(self):
-        dataset = HateSpeechDataset()
+        dataset = TextClassificationDataset(HateSpeechDataset())
         self.assertEqual(24783, len(dataset))
