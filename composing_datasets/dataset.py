@@ -8,6 +8,7 @@ from typing import Tuple, List, Dict, Optional, Callable
 from urllib.parse import urlparse
 
 import requests
+import revtok
 import torch
 import torchtext
 from torch.utils.data import Dataset
@@ -16,12 +17,50 @@ from tqdm import tqdm
 SCRIPT_DIR = os.path.dirname(__file__)
 
 
-class TextClassificationDataset(Dataset, metaclass=ABCMeta):
-    """Text classification dataset base class."""
-
+class AbstractTokenizerTextClassificationDataset(Dataset, metaclass=ABCMeta):
     DOWNLOAD_URL: str
     DATA_ROOT: str
     DATA_FILE: str
+
+    def __init__(self):
+        os.makedirs(self.DATA_ROOT, exist_ok=True)
+        if not os.path.exists(self.DATA_FILE):
+            _download_data(self.DOWNLOAD_URL, self.DATA_ROOT)
+        self.text, self.labels = self._load_data()
+
+        self.tokenizer = self._get_tokenizer()
+        self.tokens = [self.tokenizer(text) for text in self.text]
+
+        self.vocab = torchtext.vocab.build_vocab_from_iterator(self.tokens)
+        self.vocab.set_default_index(len(self.vocab))
+        self.token_ids = [self._tokens_to_tensor(tokens) for tokens in self.tokens]
+        self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
+
+    @abstractmethod
+    def _load_data(self):
+        """Load all data and return a list of strings and a list of int labels."""
+        pass
+
+    @abstractmethod
+    def _get_tokenizer(self) -> Callable:
+        pass
+
+    def _tokens_to_tensor(self, tokens: List[str]) -> torch.Tensor:
+        return torch.tensor([self.vocab[token] for token in tokens], dtype=torch.long)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return token ids and label of the requested sample as long tensors."""
+        return self.token_ids[index], self.labels[index]
+
+    def __len__(self) -> int:
+        """Number of tweets in the dataset."""
+        return len(self.text)
+
+
+class TextClassificationDataset(
+    AbstractTokenizerTextClassificationDataset, metaclass=ABCMeta
+):
+    """Text classification dataset base class."""
 
     def __init__(self, tokenizer: Optional[str] = None) -> None:
         """
@@ -36,50 +75,51 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
         :param tokenizer: One of 'spacy', 'moses', 'toktok', 'revtok', 'subword'
                           or 'basic_english'. Defaults to the last one.
         """
-        os.makedirs(self.DATA_ROOT, exist_ok=True)
-        if not os.path.exists(self.DATA_FILE):
-            _download_data(self.DOWNLOAD_URL, self.DATA_ROOT)
-        self.text, self.labels = self._load_data()
+        self.tokenizer = tokenizer
+        super().__init__()
 
-        self.tokenizer = self._get_tokenizer(tokenizer)
-        self.tokens = [self.tokenizer(text) for text in self.text]
-
-        self.vocab = torchtext.vocab.build_vocab_from_iterator(self.tokens)
-        self.vocab.set_default_index(len(self.vocab))
-        self.token_ids = [self._tokens_to_tensor(tokens) for tokens in self.tokens]
-        self.labels = [torch.tensor(label, dtype=torch.long) for label in self.labels]
-
-    @abstractmethod
-    def _load_data(self) -> Tuple[List[str], List[int]]:
-        """Load all data and return a list of strings and a list of int labels."""
-        pass
-
-    def _get_tokenizer(self, tokenizer: Optional[str]) -> Callable:
-        if tokenizer is None:
+    def _get_tokenizer(self) -> Callable:
+        if self.tokenizer is None:
             tokenizer = torchtext.data.get_tokenizer("basic_english")
         else:
-            tokenizer = torchtext.data.get_tokenizer(tokenizer)
+            tokenizer = torchtext.data.get_tokenizer(self.tokenizer)
 
         return tokenizer
 
-    def _tokens_to_tensor(self, tokens: List[str]) -> torch.Tensor:
-        return torch.tensor([self.vocab[token] for token in tokens], dtype=torch.long)
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Return token ids and label of the requested sample as long tensors."""
-        return self.token_ids[index], self.labels[index]
+class RevtokTextClassificationDataset(
+    AbstractTokenizerTextClassificationDataset, metaclass=ABCMeta
+):
+    """Text classification with revtok tokenizer dataset base class."""
 
-    def __len__(self) -> int:
-        """Number of tweets in the dataset."""
-        return len(self.text)
+    def __init__(self, decap: bool = False, split_punctuation: bool = False) -> None:
+        """
+        This is a base class for text classification datasets.
+
+        The dataset provides IDs and labels for blobs of text as long tensors. The
+        dataset files are downloaded to the project's data folder if not already
+        present. Each text is split with a tokenizer specified through a string
+        argument. The vocabulary of all tokens with a default index is built
+        afterwards.
+
+        :param decap: decapitalize words.
+        :param split_punctuation: split tokens on punctuation.
+        """
+        self.decap = decap
+        self.split_punctuation = split_punctuation
+
+        super().__init__()
+
+    def _get_tokenizer(self) -> Callable:
+        return lambda x: revtok.tokenize(x, self.decap, self.split_punctuation)
 
 
-class HateSpeechDataset(TextClassificationDataset):
+class HateSpeechReading:
     """
     This class provides token IDs and labels for the hate speech dataset sourced
     from twitter.
 
-    The dataset files are downloaded to the projects data folder if not already
+    The dataset files are downloaded to the project's data folder if not already
     present. Each tweet is split with the torchtext basic english tokenizer. The
     vocabulary of all tokens with a default index is built afterwards. The class
     labels correspond to hate speech (0), offensive (1) and neither (2).
@@ -114,7 +154,15 @@ class HateSpeechDataset(TextClassificationDataset):
         return clean_text, clean_labels
 
 
-class ImdbDataset(TextClassificationDataset):
+class HateSpeechDataset(HateSpeechReading, TextClassificationDataset):
+    pass
+
+
+class RevtokHateSpeechDataset(HateSpeechReading, RevtokTextClassificationDataset):
+    pass
+
+
+class ImdbReading:
     """Class for the Large Movie Review Dataset (imdb) dataset."""
 
     DOWNLOAD_URL: str = "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
@@ -122,25 +170,6 @@ class ImdbDataset(TextClassificationDataset):
     DATA_FILE: str = os.path.join(DATA_ROOT, "aclImdb")
 
     CLASS_PATTERN = re.compile(r"\d+_(?P<rating>\d+).txt")
-
-    def __init__(self, split: str, tokenizer: Optional[str] = None) -> None:
-        """
-        This class loads the Large Movie Review Dataset (imdb) dataset.
-
-        The dataset provides IDs and labels for movie reviews as long tensors. The
-        dataset files are downloaded to the project's data folder if not already
-        present. Each review is split with a tokenizer specified through a string
-        argument. The vocabulary of all tokens with a default index is built
-        afterwards.
-
-        :param split: either 'train' or 'test' to select the split
-        :param tokenizer: One of 'spacy', 'moses', 'toktok', 'revtok', 'subword'
-                          or 'basic_english'. Defaults to the last one.
-        """
-        if split not in ["train", "test"]:
-            raise ValueError("Unknown split supplied. Use either 'train' or 'test'.")
-        self.split = split
-        super(ImdbDataset, self).__init__(tokenizer)
 
     def _load_data(self) -> Tuple[List[str], List[int]]:
         pos_data = self._read_data(os.path.join(self.DATA_FILE, self.split, "pos"))
@@ -175,6 +204,26 @@ class ImdbDataset(TextClassificationDataset):
         clean_labels = [int(label) for label in data["class"]]
 
         return clean_text, clean_labels
+
+
+class ImdbDataset(ImdbReading, TextClassificationDataset):
+    def __init__(self, split: str, tokenizer: Optional[str] = None) -> None:
+        if split not in ["train", "test"]:
+            raise ValueError("Unknown split supplied. Use either 'train' or 'test'.")
+        self.split = split
+
+        super().__init__(tokenizer)
+
+
+class RevtokImdbDataset(ImdbReading, RevtokTextClassificationDataset):
+    def __init__(
+        self, split: str, decap: bool = False, split_punctuation: bool = False
+    ) -> None:
+        if split not in ["train", "test"]:
+            raise ValueError("Unknown split supplied. Use either 'train' or 'test'.")
+        self.split = split
+
+        super().__init__(decap, split_punctuation)
 
 
 def _download_data(url: str, output_folder: str) -> None:
