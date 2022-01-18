@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "composing-datasets"
-version = "0.3.0"
+version = "0.3.1-a"
 description = "A project illustrating Composition Over Inheritance for datasets."
 authors = ["Tilman Krokotsch <tilman.krokotsch@tu-berlin.de>"]
 
