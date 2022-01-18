@@ -4,10 +4,11 @@ import re
 import tarfile
 import zipfile
 from abc import ABCMeta, abstractmethod
-from typing import Tuple, List, Dict, Optional, Callable
+from typing import Tuple, List, Dict, Optional, Callable, Any
 from urllib.parse import urlparse
 
 import requests
+import revtok
 import torch
 import torchtext
 from torch.utils.data import Dataset
@@ -23,7 +24,7 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
     DATA_ROOT: str
     DATA_FILE: str
 
-    def __init__(self, tokenizer: Optional[str] = None) -> None:
+    def __init__(self, tokenizer: Optional[str] = None, **kwargs) -> None:
         """
         This is a base class for text classification datasets.
 
@@ -41,7 +42,7 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
             _download_data(self.DOWNLOAD_URL, self.DATA_ROOT)
         self.text, self.labels = self._load_data()
 
-        self.tokenizer = self._get_tokenizer(tokenizer)
+        self.tokenizer = self._get_tokenizer(tokenizer, kwargs)
         self.tokens = [self.tokenizer(text) for text in self.text]
 
         self.vocab = torchtext.vocab.build_vocab_from_iterator(self.tokens)
@@ -54,11 +55,17 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
         """Load all data and return a list of strings and a list of int labels."""
         pass
 
-    def _get_tokenizer(self, tokenizer: Optional[str]) -> Callable:
+    def _get_tokenizer(
+        self, tokenizer: Optional[str], kwargs: Dict[Any, Any]
+    ) -> Callable:
         if tokenizer is None:
             tokenizer = torchtext.data.get_tokenizer("basic_english")
-        else:
+        elif not kwargs:
             tokenizer = torchtext.data.get_tokenizer(tokenizer)
+        elif tokenizer == "revtok":
+            tokenizer = _RevtokTokenizer(kwargs)
+        else:
+            raise ValueError(f"Unknown tokenizer '{tokenizer}'.")
 
         return tokenizer
 
@@ -72,6 +79,16 @@ class TextClassificationDataset(Dataset, metaclass=ABCMeta):
     def __len__(self) -> int:
         """Number of tweets in the dataset."""
         return len(self.text)
+
+
+class _RevtokTokenizer:
+    """Class wrapper for revtok tokenizer."""
+
+    def __init__(self, kwargs: Dict[Any, Any]) -> None:
+        self.kwargs = kwargs
+
+    def __call__(self, x: str) -> List[str]:
+        return revtok.tokenize(x, **self.kwargs)
 
 
 class HateSpeechDataset(TextClassificationDataset):

@@ -9,6 +9,7 @@ from responses import matchers
 
 from composing_datasets.dataset import (
     TextClassificationDataset,
+    _RevtokTokenizer,
     _download_data,
     _fetch_data,
     _extract_data_if_archive,
@@ -84,6 +85,12 @@ class TestTextClassificationDataset(unittest.TestCase):
             self.assertIs(revtok.tokenize, dataset.tokenizer)
         with self.subTest("unknown tokenizer"):
             self.assertRaises(ValueError, DummyDataset, "foobar")
+        with self.subTest("revtok with kwargs"):
+            dataset = DummyDataset("revtok", decap=True, split_punctuation=False)
+            self.assertIsInstance(dataset.tokenizer, _RevtokTokenizer)
+            self.assertDictEqual(
+                {"decap": True, "split_punctuation": False}, dataset.tokenizer.kwargs
+            )
 
 
 class TestDownloadData(unittest.TestCase):
