@@ -1,6 +1,6 @@
 # Compose Datasets, Don't Inherit Them
 
-This is the companion repository to [this blog post](http://krokotsch.eu).
+This is the companion repository to [this blog post](https://krokotsch.eu/posts/compose-datasets/).
 It illustrates the design pattern *composition over inheritance* on a PyTorch datasets.
 
 The post references several versions of this repository.
